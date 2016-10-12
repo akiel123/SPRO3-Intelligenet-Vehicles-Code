@@ -10,7 +10,7 @@
 #define INCFILE1_H_
 
 #define rrad 6.28318530718
-
+#define breakSpeed 1
 
 
 #endif /* INCFILE1_H_ */
