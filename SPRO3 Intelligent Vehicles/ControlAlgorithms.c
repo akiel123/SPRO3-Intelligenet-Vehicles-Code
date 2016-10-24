@@ -14,10 +14,8 @@
 #include "ControlAlgorithms.h"
 #include "HardwareControl.h"
 
-void 
 
-	void doPark()
-	{
+void doPark(void){
 
 		//Setup other variables
 		float lastDistance1 = 0;
@@ -62,13 +60,6 @@ void
 		breaK();
 		turnMiddle();
 	}
-	
-
-	/*void check()
-	{
-		Debug.Log("check" + checkCount);
-		checkCount++;
-	}*/
 
 	void shiftDistanceBack(float distance)
 	{
@@ -99,8 +90,8 @@ void
 		SetCommand(-1, 1, false);
 		float a1 = (startAngle - angle + rrad) % rrad + 0.01f;
 		float a2 = (startAngle - angle + rrad) % rrad - 0.01f;
-		if ((startAngle - angle + rrad) % rrad < 0.01f) a2 = 0;
-		if ((startAngle - angle + rrad) % rrad > rrad - 0.01f) a1 = rrad;
+		if ((startAngle - angle + rrad) % rrad < 0.01) a2 = 0;
+		if ((startAngle - angle + rrad) % rrad > rrad - 0.01) a1 = rrad;
 		while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < a2) yield(); //Until angle is more than required angle
 		breaK();
 
@@ -110,13 +101,13 @@ void
 			breaK();
 		}
 
-		turnLeft()
+		turnLeft();
 		//Drive back while turning left
-		SetCommand(-1, -1, false);
-		a1 = startAngle + 0.01f;
-		a2 = startAngle - 0.01f;
-		if (startAngle < 0.01f) a2 = 0;
-		if (startAngle > rrad - 0.01f) a1 = rrad;
+		SetCommand(-1, -1, 0);
+		a1 = startAngle + 0.01;
+		a2 = startAngle - 0.01;
+		if (startAngle < 0.01) a2 = 0;
+		if (startAngle > rrad - 0.01) a1 = rrad;
 		while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < a2 % (2 * M_PI)) yield(); //until back at start angle
 		breaK();
 		turnMiddle();
@@ -190,10 +181,10 @@ void
 		else if (90 < offAngDeg && directionToGoal == -1) addAng = anglePhi; // turn towards -y-axis from -x-axis (180-270 -> 270)
 		addAng *= -1;
 
-		float a1 = (startAngle + addAng + rrad) % rrad + 0.01f;
-		float a2 = (startAngle + addAng + rrad) % rrad - 0.01f;
-		if ((startAngle + addAng + rrad) % rrad < 0.01f) { a2 = 0; a1 = 0.02f; } //make sure that a1 doesnt go below zero
-		if ((startAngle + addAng + rrad) % rrad > rrad - 0.01f) { a1 = rrad; a2 = rrad - 0.02f; } //make sure that a2 doesnt go above rrad.
+		float a1 = (startAngle + addAng + rrad) % rrad + 0.01;
+		float a2 = (startAngle + addAng + rrad) % rrad - 0.01;
+		if ((startAngle + addAng + rrad) % rrad < 0.01) { a2 = 0; a1 = 0.02; } //make sure that a1 doesnt go below zero
+		if ((startAngle + addAng + rrad) % rrad > rrad - 0.01) { a1 = rrad; a2 = rrad - 0.02; } //make sure that a2 doesnt go above rrad.
 		while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < a2 % (2 * M_PI)) yield(); //Until angle is between the two angles
 
 		breaK();
@@ -217,20 +208,18 @@ void
 		//Drive towards goal, while turning towards parallel to non-offset angle
 		SetCommand(directionToGoal, initialTurnDirection * -1, 0);
 		
-		a1 = (startAngle + addAng + rrad) % rrad + 0.01f;
-		a2 = (startAngle + addAng + rrad) % rrad - 0.01f;
-		if ((startAngle + addAng + rrad) % rrad < 0.01f) { a2 = 0; a1 = 0.02f; }
-		if ((startAngle + addAng + rrad) % rrad > rrad - 0.01f) { a1 = rrad; a2 = rrad - 0.02f; }
+		a1 = (startAngle + addAng + rrad) % rrad + 0.01;
+		a2 = (startAngle + addAng + rrad) % rrad - 0.01;
+		if ((startAngle + addAng + rrad) % rrad < 0.01) { a2 = 0; a1 = 0.02; }
+		if ((startAngle + addAng + rrad) % rrad > rrad - 0.01) { a1 = rrad; a2 = rrad - 0.02; }
 		while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < a2 % (2 * M_PI)) yield(); //until between a1 and a2
 
 		breaK();
 		turnMiddle();
 	}
 
-	private IEnumerator shiftDistanceFront(float distance)
+	void shiftDistanceFront(float distance)
 	{
-		performingBasicShift = false;
-
 		//Prepare variables
 		float extraDistance = 0;
 		float angle = 0;
@@ -238,83 +227,62 @@ void
 		//Check if straight driving is needed and prepare variables
 		if (distance > (ibr + obr) * 2)
 		{
-			Debug.Log("Straight needed");
-			angle = 90 * Mathf.Deg2Rad;
+			angle = 90 * Deg2Rad;
 			extraDistance = distance - (ibr + obr) * 2;
 		}
-		else angle = Mathf.Acos(1 - (distance / ((ibr + obr) * 2)));
+		else angle = acos(1 - (distance / ((ibr + obr) * 2)));
 		
 		//Start the turning based on calculated variables
-		StartCoroutine(shiftDistanceFront(angle, extraDistance));
-		yield();
+		shiftDistanceFront(angle, extraDistance);
 	}
-	private IEnumerator shiftDistanceFront(float angle, float extraDistance)
+	shiftDistanceFront(float angle, float extraDistance)
 	{
-		performingBasicShift = true;
-		//Enable automatic control
-		control.autoParking = true;
-
 		//Prepare variables
 		bool turnRadiusExceeded = extraDistance > 0;
 		float startAngle = GetBodyAngleRad();
 
-		StartCoroutine(breaK());
-		while (doingSubRoutine) yield();
-
-		StartCoroutine(turnRight());
+		breaK();
+		turnRight();
 		//Drive forward while turning right
-		SetCommand(1, 1, false);
-		float a1 = (startAngle + angle + rrad) % rrad + 0.01f;
-		float a2 = (startAngle + angle + rrad) % rrad - 0.01f;
-		if ((startAngle + angle + rrad) % rrad < 0.01f) a2 = 0;
-		if ((startAngle + angle + rrad) % rrad > rrad - 0.01f) a1 = rrad;
+		SetCommand(1, 1, 0);
+		float a1 = (startAngle + angle + rrad) % rrad + 0.01;
+		float a2 = (startAngle + angle + rrad) % rrad - 0.01;
+		if ((startAngle + angle + rrad) % rrad < 0.01) a2 = 0;
+		if ((startAngle + angle + rrad) % rrad > rrad - 0.01) a1 = rrad;
 		while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < a2) yield(); //Until angle is more than required angle
-		StartCoroutine(breaK());
-		while (doingSubRoutine) yield();
+		breaK();
 
 		//If staight driving is necessary, do it now
 		if (turnRadiusExceeded)
 		{
-			Debug.Log("Driving straight");
-			StartCoroutine(driveDistance(extraDistance));
-			while (doingSubRoutine) yield();
-			StartCoroutine(breaK());
-			while (doingSubRoutine) yield();
+			driveDistance(extraDistance);
+			breaK();
 		}
 
-		StartCoroutine(turnLeft());
-		while (doingSubRoutine) yield();
+		turnLeft();
 		//Drive forward while turning left
-		SetCommand(1, -1, false);
-		a1 = startAngle + 0.01f;
-		a2 = startAngle - 0.01f;
-		if (startAngle < 0.01f) a2 = 0;
-		if (startAngle > rrad - 0.01f) a1 = rrad;
-		while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < a2 % (2 * Mathf.PI)) yield(); //until back at start angle
-		StartCoroutine(breaK());
-		while (doingSubRoutine) yield();
-		performingBasicShift = false;
+		SetCommand(1, -1, 0);
+		a1 = startAngle + 0.01;
+		a2 = startAngle - 0.01;
+		if (startAngle < 0.01) a2 = 0;
+		if (startAngle > rrad - 0.01) a1 = rrad;
+		while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < a2 % (2 * M_PI)) yield(); //until back at start angle
+		breaK();
 	}
 
-	private IEnumerator shiftDistanceBackFront(float distance)
+	void shiftDistanceBackFront(float distance)
 	{
-		StartCoroutine (shiftDistanceBack(distance * 0.5f));
-		while (performingBasicShift) yield();
-		StartCoroutine (shiftDistanceFront(distance * 0.5f));
-		while (performingBasicShift) yield();
+		shiftDistanceBack(distance * 0.5);
+		shiftDistanceFront(distance * 0.5);
 		turnMiddle();
-		while (doingSubRoutine) yield();
 	}
-	private IEnumerator shiftDistanceFrontBack(float distance)
+	void shiftDistanceFrontBack(float distance)
 	{
-		StartCoroutine(shiftDistanceFront(distance * 0.5f));
-		while (performingBasicShift) yield();
-		StartCoroutine(shiftDistanceBack(distance * 0.5f));
-		while (performingBasicShift) yield();
+		shiftDistanceFront(distance * 0.5);
+		shiftDistanceBack(distance * 0.5);
 		turnMiddle();
-		while (doingSubRoutine) yield();
 	}
-	private IEnumerator shiftDistanceLimitedSpace(float distance, float spaceLimit)
+	void shiftDistanceLimitedSpace(float distance, float spaceLimit)
 	{
 		//Prepare variables
 		float extraDistance = 0;
@@ -324,38 +292,28 @@ void
 		//Check if limit comforming is necessary
 		if (spaceLimit > (ibr + obr))
 		{
-			Debug.Log("Straight needed");
-			angle = 90 * Mathf.Deg2Rad;
+			angle = 90 * Deg2Rad;
 			extraDistance = spaceLimit - (ibr + obr) * 0.5f;
 		}
-		else angle = Mathf.Asin(spaceLimit / ((ibr + obr)));
+		else angle = asin(spaceLimit / ((ibr + obr)));
 
 		float distanceShifted = 0;
-		float stepLength = (1 - Mathf.Cos(angle)) * (ibr + obr) + extraDistance;
+		float stepLength = (1 - cos(angle)) * (ibr + obr) + extraDistance;
 
 		int maxSteps = 10; //for debugging purposes
 		int i = 0;
-		Debug.Log("Check 1 - Distance: " + (distance - distanceShifted) + "   StepLength: " + stepLength);
 		while (i < maxSteps) //Shift back and front at the maximum calculated angle until goal is reachable in next step.
 		{
 			if (distance - distanceShifted < stepLength * 2) break;
-			StartCoroutine(shiftDistanceBack(angle, extraDistance));
-			while (performingBasicShift) yield();
+			shiftDistanceBack(angle, extraDistance);
 			distanceShifted += stepLength;
 			
-			Debug.Log("Check 3: " + distanceShifted);
-			StartCoroutine(shiftDistanceFront(angle, extraDistance));
-			while (performingBasicShift) yield();
+			shiftDistanceFront(angle, extraDistance);
 			distanceShifted += stepLength;
-			Debug.Log("Check 4: " + distanceShifted);
 			i++;
 		}
-		Debug.Log("Check 2: " + ((distance - distanceShifted) / 2));
-		StartCoroutine(shiftDistanceBack((distance - distanceShifted) / 2));
-		while (performingBasicShift) yield();
-		StartCoroutine(shiftDistanceFront((distance - distanceShifted) / 2));
-		while (performingBasicShift) yield();
-		yield();
+		shiftDistanceBack((distance - distanceShifted) / 2);
+		shiftDistanceFront((distance - distanceShifted) / 2);
 		bool turnRadiusExceeded = false;
 		extraDistance = 0;
 		angle = 0;
@@ -364,12 +322,11 @@ void
 		//Check if straight driving is needed and prepare variables
 		if (distance > (ibr + obr) * 2)
 		{
-			Debug.Log("Space not limited");
-			angle = 90 * Mathf.Deg2Rad;
+			angle = 90 * Deg2Rad;
 			turnRadiusExceeded = true;
 			extraDistance = distance - (ibr + obr) * 2;
 		}
-		else angle = Mathf.Asin(1 - (distance / ((ibr + obr) * 2)));
+		else angle = asin(1 - (distance / ((ibr + obr) * 2)));
 	}
 
 
