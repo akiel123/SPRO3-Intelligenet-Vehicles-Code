@@ -6,13 +6,15 @@
  */ 
 
 
-#ifndef INCFILE1_H_
-#define INCFILE1_H_
+#ifndef MANEUVERING_H_
+#define MANEUVERING_H_
 
 #define rrad 6.28318530718
 #define breakSpeed 1
+#define actionTurnLeft 1
+#define actionTurnRight 2
+#define actionDriveStraight 4
 
-void doPark(void);
 void shiftDistanceBack1(double);
 void shiftDistanceBack2(double, double);
 void shiftDistanceBackOffset(double, double);
@@ -27,6 +29,5 @@ void turnMiddle(void);
 void turnRight(void);
 void backUpDistance(double);
 void driveDistance(double);
-void yield(void);
 
 #endif /* INCFILE1_H_ */

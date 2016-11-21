@@ -5,62 +5,19 @@
  *  Author: manke
  */ 
 
-#define actionTurnLeft 1
-#define actionTurnRight 2
-#define actionDriveStraight 4
 
 #include <math.h>
 #include "MathExtra.h"
-#include "ControlAlgorithms.h"
+#include "Maneuvering.h"
+#include "Safety.h"
 #include "HardwareControl.h"
+#include "ArrayFunc.h"
 
+int currentTurnDirection = -2;
+volatile int reachedWallFlag = 0;
 
-void doPark(void){
-
-	//Setup other variables
-	double lastDistance1 = 0;
-	double lastDistance2 = 0;
-	double backSensorOffset = 0.1f;
-	double angle = 0;
-
-	//Drive back without turning
-	SetCommand(-1, 0, 0);
-	while ( GetSensorData(sidBackPointingRight) != -1) yield(); // until back end of car is aligned with obstacle 1
-	breaK();
-
-	turnRight();
-	//Drive back while turning right
-	SetCommand(-1, 1, 0);
-	while (GetSensorData(sidBackMiddlePointingBack1) == -1) yield(); //until obstacle two is visible;
-	while (GetSensorData(sidBackMiddlePointingBack1) != -1) { //and then until it isn't visible again, while keeping track of the last measured value
-		lastDistance1 = GetSensorData(sidBackMiddlePointingBack1);
-		lastDistance2 = GetSensorData(sidBackMiddlePointingBack1);
-		yield();
-	}
-
-	// Calculate angle between alignent of obstacle2(and supposedly object1) and the alignment of the car (in radians)
-	angle = atan((lastDistance1 - lastDistance2) / backSensorOffset);
-	//Set the rotation of the angluar distance sensor to the difference in alignment
-	SetRotationOfSensor(angle);
-	breaK();
-		
-	turnMiddle();
-	//Drive back without turning
-	SetCommand(-1, 0, 0);
-	while (GetSensorData(sidFrontRightAngular) == -1) yield(); //Until front right corner of car clears obstacle 1
-	breaK();
-
-	turnLeft();
-	//Drive back while turning left
-	SetCommand(-1, -1, 0);             // until car is aligned with object 2
-	do{
-		angle = atan((GetSensorData(sidBackMiddlePointingBack1) - GetSensorData(sidBackMiddlePointingBack2)) / backSensorOffset);
-		yield();
-	}
-	while (!(-1 < angle && angle < 1));
-	breaK();
-	turnMiddle();
-}
+enum USSHandleCase {finishingPark, findingSpot};
+volatile USSHandleCase ussCase = findingSpot;
 	
 void shiftDistanceBack1(double distance){
 	//Prepare variables
@@ -80,17 +37,17 @@ void shiftDistanceBack1(double distance){
 void shiftDistanceBack2(double angle, double extraDistance){
 	//Prepare variables
 	int turnRadiusExceeded = extraDistance > 0;
-	double startAngle = GetBodyAngleRad();
+	resetAngle();
 		
 	breaK();
 	turnRight();
 	
 	//Back while turning right
 	SetCommand(-1, 1, 0);
-	double a1 = fmod((startAngle - angle + rrad), rrad) + 0.01;
-	double a2 = fmod((startAngle - angle + rrad), rrad) - 0.01;
-	if (fmod((startAngle - angle + rrad), rrad) < 0.01) a2 = 0;
-	if (fmod((startAngle - angle + rrad), rrad) > rrad - 0.01) a1 = rrad;
+	double a1 = fmod((- angle + rrad), rrad) + 0.01;
+	double a2 = fmod((- angle + rrad), rrad) - 0.01;
+	if (fmod((- angle + rrad), rrad) < 0.01) a2 = 0;
+	if (fmod((- angle + rrad), rrad) > rrad - 0.01) a1 = rrad;
 	while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < a2) yield(); //Until angle is more than required angle
 	breaK();
 
@@ -102,10 +59,8 @@ void shiftDistanceBack2(double angle, double extraDistance){
 	turnLeft();
 	//Drive back while turning left
 	SetCommand(-1, -1, 0);
-	a1 = startAngle + 0.01;
-	a2 = startAngle - 0.01;
-	if (startAngle < 0.01) a2 = 0;
-	if (startAngle > rrad - 0.01) a1 = rrad;
+	a1 = 0.02;
+	a2 = 0;
 	while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < fmod(a2,2 * M_PI)) yield(); //until back at start angle
 	breaK();
 	turnMiddle();
@@ -131,8 +86,8 @@ void shiftDistanceBackOffset(double distance, double offsetAngle) //Shifts backw
 	double extraDistance = 0; //How much forward driving is needed
 	//double angle = 0; obsolete
 	double anglePhi = 0; //How many degrees first turn will be
-	double startAngle = GetBodyAngleRad(); //The angle at which the vehicle starts, in relation to global coordinate system
-
+	resetBodyAngle();
+	
 	double minimum1PointDistance = (1 - fabs(cos(offsetAngle))) * (obr);	//The distance moved along y-axis if the car directly aligns
 																		//itself with the desired axis, meassured at back wheel
 																		//closest to the goal
@@ -171,7 +126,7 @@ void shiftDistanceBackOffset(double distance, double offsetAngle) //Shifts backw
 		//Back while turning
 	SetCommand(directionToGoal * initialDirection, initialTurnDirection, 0);
 	
-	double addAng = 0; //The angle to add to startangle. When debugging, note, that if it actually has to turn away from the given y-axis, anglePhi is already negative
+	double addAng = 0; //The angle to add to startangle (0). When debugging, note, that if it actually has to turn away from the given y-axis, anglePhi is already negative
 	
 	if (offAngDeg < 90 && directionToGoal == 1) addAng = anglePhi; //it has to turn towards the relative y-axis, from positive x-axis (from 0-90 -> 90)
 	else if (90 < offAngDeg && directionToGoal == 1) addAng = anglePhi * -1;	//turn towards +y-axis from -x-axis (180-90 -> 90)
@@ -180,10 +135,10 @@ void shiftDistanceBackOffset(double distance, double offsetAngle) //Shifts backw
 	else if (90 < offAngDeg && directionToGoal == -1) addAng = anglePhi; // turn towards -y-axis from -x-axis (180-270 -> 270)
 	addAng *= -1;
 
-	double a1 = fmod((startAngle + addAng + rrad), rrad) + 0.01f;
-	double a2 = fmod((startAngle + addAng + rrad), rrad) - 0.01f;
-	if (fmod((startAngle + addAng + rrad), rrad) < 0.01f) { a2 = 0; a1 = 0.02f; } //make sure that a1 doesnt go below zero
-	if (fmod((startAngle + addAng + rrad), rrad) > rrad - 0.01f) { a1 = rrad; a2 = rrad - 0.02f; } //make sure that a2 doesnt go above rrad.
+	double a1 = fmod((addAng + rrad), rrad) + 0.01f;
+	double a2 = fmod((addAng + rrad), rrad) - 0.01f;
+	if (fmod((addAng + rrad), rrad) < 0.01f) { a2 = 0; a1 = 0.02f; } //make sure that a1 doesnt go below zero
+	if (fmod((addAng + rrad), rrad) > rrad - 0.01f) { a1 = rrad; a2 = rrad - 0.02f; } //make sure that a2 doesnt go above rrad.
 	while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < fmod(a2, 2 * M_PI)) yield(); //Until angle is between the two angles
 
 	breaK();
@@ -206,10 +161,10 @@ void shiftDistanceBackOffset(double distance, double offsetAngle) //Shifts backw
 	//Drive towards goal, while turning towards parallel to non-offset angle
 	SetCommand(directionToGoal, initialTurnDirection * -1, 0);
 	
-	a1 = fmod((startAngle + addAng + rrad), rrad) + 0.01f;
-	a2 = fmod((startAngle + addAng + rrad), rrad) - 0.01f;
-	if (fmod((startAngle + addAng + rrad), rrad) < 0.01f) { a2 = 0; a1 = 0.02f; }
-	if (fmod((startAngle + addAng + rrad), rrad) > rrad - 0.01f) { a1 = rrad; a2 = rrad - 0.02f; }
+	a1 = fmod((addAng + rrad), rrad) + 0.01f;
+	a2 = fmod((addAng + rrad), rrad) - 0.01f;
+	if (fmod((addAng + rrad), rrad) < 0.01f) { a2 = 0; a1 = 0.02f; }
+	if (fmod((addAng + rrad), rrad) > rrad - 0.01f) { a1 = rrad; a2 = rrad - 0.02f; }
 	while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < fmod(a2, 2 * M_PI)) yield(); //until between a1 and a2
 
 	breaK();
@@ -240,17 +195,17 @@ void shiftDistanceFront2(double angle, double extraDistance)
 
 	//Prepare variables
 	int turnRadiusExceeded = extraDistance > 0;
-	double startAngle = GetBodyAngleRad();
+	resetBodyAngle();
 
 	breaK();
 
 	turnRight();
 	//Drive forward while turning right
 	SetCommand(1, 1, 0);
-	double a1 = fmod((startAngle + angle + rrad), rrad) + 0.01f;
-	double a2 = fmod((startAngle + angle + rrad), rrad) - 0.01f;
-	if (fmod((startAngle + angle + rrad), rrad) < 0.01f) a2 = 0;
-	if (fmod((startAngle + angle + rrad), rrad) > rrad - 0.01f) a1 = rrad;
+	double a1 = fmod((angle + rrad), rrad) + 0.01f;
+	double a2 = fmod((angle + rrad), rrad) - 0.01f;
+	if (fmod((angle + rrad), rrad) < 0.01f) a2 = 0;
+	if (fmod((angle + rrad), rrad) > rrad - 0.01f) a1 = rrad;
 	while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < a2) yield(); //Until angle is more than required angle
 	breaK();
 
@@ -263,10 +218,8 @@ void shiftDistanceFront2(double angle, double extraDistance)
 
 	turnLeft();		//Drive forward while turning left
 	SetCommand(1, -1, 0);
-	a1 = startAngle + 0.01;
-	a2 = startAngle - 0.01;
-	if (startAngle < 0.01) a2 = 0;
-	if (startAngle > rrad - 0.01) a1 = rrad;
+	a1 = 0.02;
+	a2 = 0;
 	while (GetBodyAngleRad() > a1 || GetBodyAngleRad() < fmod(a2, 2 * M_PI)) yield(); //until back at start angle
 	breaK();
 }
@@ -287,7 +240,6 @@ void shiftDistanceLimitedSpace(double distance, double spaceLimit)
 	//Prepare variables
 	double extraDistance = 0;
 	double angle = 0;
-	//double startAngle = GetBodyAngleRad();   not used yet
 
 	//Check if limit comforming is necessary
 	if (spaceLimit > (ibr + obr))
@@ -318,7 +270,6 @@ void shiftDistanceLimitedSpace(double distance, double spaceLimit)
 	//int turnRadiusExceeded = 0; obsolete
 	extraDistance = 0;
 	angle = 0;
-	//double startAngle = GetBodyAngleRad(); obsolete
 
 	//Check if straight driving is needed and prepare variables
 	if (distance > (ibr + obr) * 2)
@@ -330,7 +281,6 @@ void shiftDistanceLimitedSpace(double distance, double spaceLimit)
 	else angle = asin(1 - (distance / ((ibr + obr) * 2)));
 }
 
-
 void breaK(void)
 {
 	SetCommand(0, 0, 0); //Break
@@ -338,19 +288,26 @@ void breaK(void)
 }
 void turnLeft(void)
 {
+	currentTurnDirection = -2;
 	SetCommand(0, -1, 0); //Turn to the left
 	while (!(GetWheelPosition() == -1)) yield(); // until wheel is allmost fully turned
+	currentTurnDirection = -1;
+	
 }
 void turnMiddle(void)
 {
+	currentTurnDirection = -2;
 	if(GetWheelPosition() > 0 ) SetCommand(0, -1, 0); //Turn towards the left
 	else if(GetWheelPosition() < 0) SetCommand(0, 1, 0); //Turn towards the right
 	while (!(GetWheelPosition() == 0)) yield(); // until wheel is in the middle
+	currentTurnDirection = 0;
 }
 void turnRight(void)
 {
+	currentTurnDirection = -2;
 	SetCommand(0, 1, 0); //Turn to the right
 	while (!(GetWheelPosition() == 1)) yield(); // until wheel is allmost fully turned
+	currentTurnDirection = 1;
 	}
 void backUpDistance(double distance)
 {
@@ -366,5 +323,9 @@ void driveDistance(double distance)
 	SetCommand(1, 0, 0); //Back up
 	while (GetDistance() - distanceStart < distance) yield(); // until an appropriate distance from starting point
 }
-	
-void yield(void); //do a manual interrupt
+
+void turnDirection(int directionIsRight){
+	if(directionIsRight == 1) turnRight();
+	else if(directionIsRight == 0) turnMiddle();
+	else if(directionIsRight == -1) turnLeft();
+}
